@@ -1,0 +1,1845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#FFFFFF">
+<title>Memo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #FFFFFF;
+    --surface: #F8F9FA;
+    --border: #E5E5E7;
+    --ink: #111111;
+    --muted: #71717A;
+    --rec: #EF4444;
+    --radius: 12px;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 15px;
+    line-height: 1.4;
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior: none;
+  }
+
+  body {
+    display: flex;
+    justify-content: center;
+    min-height: 100dvh;
+    padding: calc(16px + var(--safe-top)) 16px calc(24px + var(--safe-bottom));
+  }
+
+  .app {
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  header {
+    text-align: center;
+    padding: 8px 0 4px;
+  }
+
+  header h1 {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+
+  .viz-card {
+    padding: 12px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .timer-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .timer {
+    font-size: 28px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+  }
+
+  .status {
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .status.rec { color: var(--rec); }
+
+  /* Waveform timeline */
+  .wave-wrap {
+    position: relative;
+    width: 100%;
+    height: 88px;
+    border-radius: 8px;
+    background: #FFFFFF;
+    border: 1px solid var(--border);
+    overflow: hidden;
+    touch-action: none;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .wave-wrap.empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .wave-wrap.empty::after {
+    content: 'Waveform appears after load';
+    font-size: 12px;
+    color: var(--muted);
+    pointer-events: none;
+  }
+
+  #wave {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .playhead {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--ink);
+    pointer-events: none;
+    z-index: 2;
+    transform: translateX(-1px);
+    display: none;
+  }
+
+  .playhead::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--ink);
+  }
+
+  .wave-times {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    margin-top: -4px;
+    padding: 0 2px;
+  }
+
+  /* Live scope (small, under transport when recording) */
+  #scope {
+    width: 100%;
+    height: 40px;
+    display: none;
+    border-radius: 6px;
+    background: #FFFFFF;
+    border: 1px solid var(--border);
+  }
+
+  .transport {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    padding: 8px 0 4px;
+  }
+
+  .btn {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-family: inherit;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+
+  .btn:active { transform: scale(0.94); }
+  .btn:disabled { opacity: 0.35; pointer-events: none; }
+
+  .btn-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: #FFFFFF;
+    color: var(--ink);
+  }
+
+  .btn-icon svg { width: 20px; height: 20px; }
+
+  .btn-rec {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: var(--rec);
+    border: 3px solid #FFFFFF;
+    box-shadow: 0 0 0 1.5px var(--rec);
+    position: relative;
+  }
+
+  .btn-rec::after {
+    content: '';
+    position: absolute;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #FFFFFF;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .btn-rec.recording::after {
+    width: 18px;
+    height: 18px;
+    border-radius: 3px;
+  }
+
+  .btn-rec.recording {
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 1.5px var(--rec); }
+    50% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0.25); }
+  }
+
+  .controls { display: flex; flex-direction: column; gap: 14px; }
+
+  .slider-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .slider-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 13px;
+  }
+
+  .slider-label span:first-child {
+    color: var(--ink);
+    font-weight: 500;
+  }
+
+  .slider-label .value {
+    font-variant-numeric: tabular-nums;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 28px;
+    background: transparent;
+    margin: 0;
+    cursor: pointer;
+  }
+
+  input[type="range"]::-webkit-slider-runnable-track {
+    height: 2px;
+    background: var(--border);
+    border-radius: 1px;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #FFFFFF;
+    border: 1.5px solid var(--ink);
+    margin-top: -8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+  }
+
+  input[type="range"]::-moz-range-track {
+    height: 2px;
+    background: var(--border);
+    border-radius: 1px;
+  }
+
+  input[type="range"]::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #FFFFFF;
+    border: 1.5px solid var(--ink);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+  }
+
+  .presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .preset {
+    font-size: 12px;
+    font-weight: 500;
+    padding: 7px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: #FFFFFF;
+    color: var(--ink);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+
+  .preset:active, .preset.active {
+    background: var(--ink);
+    color: #FFFFFF;
+    border-color: var(--ink);
+  }
+
+  .actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .actions.three {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+
+  .btn-action {
+    height: 48px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: #FFFFFF;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--ink);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .btn-action.primary {
+    background: var(--ink);
+    color: #FFFFFF;
+    border-color: var(--ink);
+  }
+
+  .btn-action:disabled {
+    opacity: 0.4;
+    pointer-events: none;
+  }
+
+  .btn-action svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+  .hidden-input { display: none; }
+
+  .msg {
+    font-size: 13px;
+    color: var(--muted);
+    text-align: center;
+    padding: 8px 12px;
+    line-height: 1.5;
+  }
+
+  .msg.error { color: var(--rec); }
+
+  .diag {
+    background: #FFFFFF;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    font-size: 12px;
+    line-height: 1.55;
+    color: var(--muted);
+  }
+
+  .diag strong { color: var(--ink); font-weight: 600; }
+  .diag code {
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size: 11px;
+    background: var(--surface);
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+
+  .test-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  .test-row .btn-action { flex: 1; height: 40px; font-size: 13px; }
+
+  .footer {
+    text-align: center;
+    font-size: 11px;
+    color: var(--muted);
+    padding-top: 4px;
+  }
+
+  /* Name dialog */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.35);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    width: 100%;
+    max-width: 340px;
+    background: #FFFFFF;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    padding: 20px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.12);
+  }
+  .modal h2 {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .modal p {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+  .modal-input-row {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    overflow: hidden;
+  }
+  .modal-input-row input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    padding: 12px 12px;
+    font-size: 15px;
+    font-family: inherit;
+    color: var(--ink);
+    outline: none;
+    min-width: 0;
+  }
+  .modal-input-row .ext {
+    padding: 12px 12px 12px 0;
+    font-size: 14px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+  }
+  .modal-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 16px;
+  }
+  .modal-actions button {
+    height: 44px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: #FFFFFF;
+    font-size: 14px;
+    font-weight: 500;
+    font-family: inherit;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .modal-actions button.primary {
+    background: var(--ink);
+    color: #FFFFFF;
+    border-color: var(--ink);
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header><h1>Memo</h1></header>
+
+  <div class="actions" id="actionRow">
+    <button class="btn-action" id="btnUpload">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+      Upload
+    </button>
+    <button class="btn-action primary" id="btnExport" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+      Export
+    </button>
+  </div>
+
+  <input type="file" id="fileInput" class="hidden-input" accept="audio/*,video/*,.wav,.WAV,.wave,.WAVE,.mp3,.MP3,.m4a,.M4A,.aac,.AAC,.ogg,.OGG,.oga,.OGA,.opus,.OPUS,.flac,.FLAC,.aiff,.AIFF,.aif,.AIF,.caf,.CAF,.amr,.AMR,.wma,.WMA,.mov,.MOV,.mp4,.MP4,.m4v,.M4V,.webm,.WEBM,.mkv,.MKV,.avi,.AVI,.3gp,.3GP,.3g2,.3G2,.mts,.MTS,.m2ts,.M2TS,.ts,.TS,.wmv,.WMV,.flv,.FLV,.f4v,.F4V,.mpg,.MPG,.mpeg,.MPEG,.vob,.VOB,.mxf,.MXF,.rm,.RM,.rmvb,.RMVB">
+
+  <div class="card viz-card">
+    <div class="timer-row">
+      <div class="timer" id="timer">0:00.0</div>
+      <div class="status" id="status">Ready</div>
+    </div>
+
+    <div class="wave-wrap empty" id="waveWrap">
+      <canvas id="wave"></canvas>
+      <div class="playhead" id="playhead"></div>
+    </div>
+    <div class="wave-times" id="waveTimes" style="display:none">
+      <span id="tStart">0:00</span>
+      <span id="tEnd">0:00</span>
+    </div>
+
+    <canvas id="scope" width="448" height="40"></canvas>
+
+    <div class="transport">
+      <button class="btn btn-icon" id="btnPlay" title="Play / Pause" disabled>
+        <svg id="iconPlay" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        <svg id="iconPause" viewBox="0 0 24 24" fill="currentColor" style="display:none"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+      </button>
+      <button class="btn btn-rec" id="btnRec" title="Record"></button>
+      <button class="btn btn-icon" id="btnStop" title="Stop" disabled>
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v12H6z"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="card controls" id="dspPanel">
+    <div class="slider-row">
+      <div class="slider-label"><span>Volume</span><span class="value" id="valVol">100% · 0.0 dB</span></div>
+      <input type="range" id="slVol" min="0" max="200" value="100" step="1">
+    </div>
+    <div class="slider-row">
+      <div class="slider-label"><span>Heard from a dorm over</span><span class="value" id="valDorm">0%</span></div>
+      <input type="range" id="slDorm" min="0" max="100" value="0" step="1">
+    </div>
+    <div class="slider-row">
+      <div class="slider-label"><span>Speed / Pitch</span><span class="value" id="valSpeed">1.00×</span></div>
+      <input type="range" id="slSpeed" min="25" max="250" value="100" step="1">
+    </div>
+    <div class="slider-row">
+      <div class="slider-label"><span>Bass Boost</span><span class="value" id="valBass">0 dB</span></div>
+      <input type="range" id="slBass" min="0" max="24" value="0" step="0.5">
+    </div>
+    <div class="slider-row">
+      <div class="slider-label"><span>Distortion</span><span class="value" id="valDist">0%</span></div>
+      <input type="range" id="slDist" min="0" max="100" value="0" step="1">
+    </div>
+    <div class="slider-row">
+      <div class="slider-label"><span>Sample Rate</span><span class="value" id="valSR">48.0 kHz</span></div>
+      <input type="range" id="slSR" min="1" max="48" value="48" step="0.5">
+    </div>
+    <div class="slider-row">
+      <div class="slider-label"><span>Bit Crusher</span><span class="value" id="valBits">16 bit</span></div>
+      <input type="range" id="slBits" min="1" max="16" value="16" step="1">
+    </div>
+    <div class="slider-row">
+      <div class="slider-label"><span>Reverb</span><span class="value" id="valRev">0%</span></div>
+      <input type="range" id="slRev" min="0" max="100" value="0" step="1">
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="presets" id="presets">
+      <button class="preset active" data-preset="clean">Clean</button>
+      <button class="preset" data-preset="dorm">Dorm Over</button>
+      <button class="preset" data-preset="lofi">Lo-Fi Radio</button>
+      <button class="preset" data-preset="demon">Demon Bass</button>
+      <button class="preset" data-preset="8bit">8-Bit Retro</button>
+      <button class="preset" data-preset="cathedral">Cathedral</button>
+      <button class="preset" data-preset="crush">1kHz Crush</button>
+    </div>
+  </div>
+
+  <div class="test-row">
+    <button class="btn-action" id="btnTest">Test Tone</button>
+    <button class="btn-action" id="btnRetry" style="display:none">Try Again</button>
+  </div>
+
+  <div class="msg" id="msg"></div>
+  <div id="diagWrap" style="display:none"></div>
+  <div class="footer">Processed offline · 16-bit PCM · memo.wav</div>
+</div>
+
+<div class="modal-backdrop" id="nameModal" role="dialog" aria-modal="true">
+  <div class="modal">
+    <h2 id="nameModalTitle">Name your file</h2>
+    <p id="nameModalHint">This name is used for the download and share.</p>
+    <div class="modal-input-row">
+      <input type="text" id="nameInput" maxlength="80" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="done">
+      <span class="ext">.wav</span>
+    </div>
+    <div class="modal-actions">
+      <button type="button" id="nameCancel">Cancel</button>
+      <button type="button" class="primary" id="nameConfirm">Export</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ─── State ───────────────────────────────────────────────
+  let audioCtx = null;
+  let mediaStream = null;
+  let mediaRecorder = null;
+  let recordedChunks = [];
+  let sourceBuffer = null;
+  let isRecording = false;
+  let isPlaying = false;
+  let playSource = null;
+  let playStartTime = 0;
+  let playOffset = 0;
+  let animId = null;
+  let scopeAnalyser = null;
+  let scopeData = null;
+  let lastWavBlob = null;       // for share after export
+  let isSeeking = false;
+  let waveformPeaks = null;     // Float32Array of peak amplitudes 0–1
+
+  // DSP nodes
+  let live = {
+    vol: null, limiter: null,
+    dormLP1: null, dormLP2: null, dormPeak: null,
+    dormConv: null, dormDry: null, dormWet: null,
+    bass: null, dist: null, crusher: null,
+    reverb: null, reverbDry: null, reverbWet: null,
+    master: null
+  };
+
+  let dormIR = null;
+  let reverbIR = null;
+
+  // UI
+  const $ = id => document.getElementById(id);
+  const timerEl = $('timer');
+  const statusEl = $('status');
+  const waveCanvas = $('wave');
+  const waveCtx = waveCanvas.getContext('2d');
+  const waveWrap = $('waveWrap');
+  const playhead = $('playhead');
+  const waveTimes = $('waveTimes');
+  const tStart = $('tStart');
+  const tEnd = $('tEnd');
+  const scope = $('scope');
+  const scopeCtx = scope.getContext('2d');
+  const btnRec = $('btnRec');
+  const btnPlay = $('btnPlay');
+  const btnStop = $('btnStop');
+  const btnExport = $('btnExport');
+  const btnUpload = $('btnUpload');
+  const btnTest = $('btnTest');
+  const btnRetry = $('btnRetry');
+  const fileInput = $('fileInput');
+  const msgEl = $('msg');
+  const diagWrap = $('diagWrap');
+  const actionRow = $('actionRow');
+
+  const sliders = {
+    vol: $('slVol'), dorm: $('slDorm'), speed: $('slSpeed'),
+    bass: $('slBass'), dist: $('slDist'), sr: $('slSR'),
+    bits: $('slBits'), rev: $('slRev')
+  };
+  const vals = {
+    vol: $('valVol'), dorm: $('valDorm'), speed: $('valSpeed'),
+    bass: $('valBass'), dist: $('valDist'), sr: $('valSR'),
+    bits: $('valBits'), rev: $('valRev')
+  };
+
+  // ─── Helpers ─────────────────────────────────────────────
+  function setMsg(text, isError = false) {
+    msgEl.textContent = text || '';
+    msgEl.className = 'msg' + (isError ? ' error' : '');
+  }
+
+  function setStatus(text, rec = false) {
+    statusEl.textContent = text;
+    statusEl.className = 'status' + (rec ? ' rec' : '');
+  }
+
+  function formatTime(sec) {
+    if (!isFinite(sec) || sec < 0) sec = 0;
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return m + ':' + s.toFixed(1).padStart(4, '0');
+  }
+
+  function formatTimeShort(sec) {
+    if (!isFinite(sec) || sec < 0) sec = 0;
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return m + ':' + String(s).padStart(2, '0');
+  }
+
+  function dbFromGain(g) {
+    if (g <= 0) return '-∞';
+    return (20 * Math.log10(g)).toFixed(1);
+  }
+
+  // ─── AudioContext ───────────────────────────────────────
+  async function ensureCtx() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 48000 });
+    }
+    if (audioCtx.state === 'suspended') await audioCtx.resume();
+    return audioCtx;
+  }
+
+  // ─── Impulse responses ──────────────────────────────────
+  function makeDormIR(ctx) {
+    const len = Math.floor(ctx.sampleRate * 1.1);
+    const buf = ctx.createBuffer(2, len, ctx.sampleRate);
+    for (let c = 0; c < 2; c++) {
+      const d = buf.getChannelData(c);
+      for (let i = 0; i < len; i++) {
+        const t = i / ctx.sampleRate;
+        const env = Math.exp(-t * 4.2) * (1 - t / 1.1);
+        d[i] = (Math.random() * 2 - 1) * env * 0.55;
+      }
+    }
+    const r = buf.getChannelData(1);
+    for (let i = 2; i < len; i++) r[i] = r[i] * 0.85 + r[i - 2] * 0.15;
+    return buf;
+  }
+
+  function makeReverbIR(ctx) {
+    const len = Math.floor(ctx.sampleRate * 2.4);
+    const buf = ctx.createBuffer(2, len, ctx.sampleRate);
+    for (let c = 0; c < 2; c++) {
+      const d = buf.getChannelData(c);
+      for (let i = 0; i < len; i++) {
+        const t = i / ctx.sampleRate;
+        d[i] = (Math.random() * 2 - 1) * Math.exp(-t * 2.1) * 0.7;
+      }
+    }
+    return buf;
+  }
+
+  function makeDistCurve(amount) {
+    const n = 2048;
+    const curve = new Float32Array(n);
+    const k = amount * 400;
+    for (let i = 0; i < n; i++) {
+      const x = (i * 2) / n - 1;
+      curve[i] = k < 0.001 ? x : ((1 + k) * x) / (1 + k * Math.abs(x));
+    }
+    return curve;
+  }
+
+  // ─── Crusher (ScriptProcessor) ──────────────────────────
+  let crusherParams = { step: 1, levels: 65536, holdL: 0, holdR: 0, phase: 0 };
+
+  function createCrusher(ctx) {
+    const bufSize = 256;
+    const sp = ctx.createScriptProcessor(bufSize, 2, 2);
+    sp.onaudioprocess = (e) => {
+      const inl = e.inputBuffer.getChannelData(0);
+      const inr = e.inputBuffer.getChannelData(1);
+      const outl = e.outputBuffer.getChannelData(0);
+      const outr = e.outputBuffer.getChannelData(1);
+      const { step, levels } = crusherParams;
+      let { holdL, holdR, phase } = crusherParams;
+      const inv = levels > 1 ? 1 / (levels - 1) : 1;
+      for (let i = 0; i < bufSize; i++) {
+        if (phase <= 0) {
+          let sl = inl[i], sr = inr[i];
+          if (levels < 65536) {
+            sl = Math.round((sl + 1) * 0.5 * (levels - 1)) * inv * 2 - 1;
+            sr = Math.round((sr + 1) * 0.5 * (levels - 1)) * inv * 2 - 1;
+          }
+          holdL = sl; holdR = sr;
+          phase = step;
+        }
+        outl[i] = holdL;
+        outr[i] = holdR;
+        phase -= 1;
+      }
+      crusherParams.holdL = holdL;
+      crusherParams.holdR = holdR;
+      crusherParams.phase = phase;
+    };
+    return sp;
+  }
+
+  // ─── Live DSP graph ─────────────────────────────────────
+  function buildLiveGraph() {
+    if (!audioCtx) return;
+    Object.values(live).forEach(n => { try { n && n.disconnect(); } catch (_) {} });
+
+    live.vol = audioCtx.createGain();
+    live.limiter = audioCtx.createDynamicsCompressor();
+    live.limiter.threshold.value = -1.5;
+    live.limiter.knee.value = 6;
+    live.limiter.ratio.value = 12;
+    live.limiter.attack.value = 0.003;
+    live.limiter.release.value = 0.1;
+
+    live.dormLP1 = audioCtx.createBiquadFilter();
+    live.dormLP1.type = 'lowpass'; live.dormLP1.Q.value = 0.707;
+    live.dormLP2 = audioCtx.createBiquadFilter();
+    live.dormLP2.type = 'lowpass'; live.dormLP2.Q.value = 0.707;
+    live.dormPeak = audioCtx.createBiquadFilter();
+    live.dormPeak.type = 'peaking';
+    live.dormPeak.frequency.value = 140;
+    live.dormPeak.Q.value = 2.2;
+
+    live.dormDry = audioCtx.createGain();
+    live.dormWet = audioCtx.createGain();
+    live.dormConv = audioCtx.createConvolver();
+    live.dormConv.buffer = dormIR;
+
+    live.bass = audioCtx.createBiquadFilter();
+    live.bass.type = 'lowshelf'; live.bass.frequency.value = 135;
+
+    live.dist = audioCtx.createWaveShaper();
+    live.dist.oversample = '4x';
+    live.dist.curve = makeDistCurve(0);
+
+    live.crusher = createCrusher(audioCtx);
+
+    live.reverbDry = audioCtx.createGain();
+    live.reverbWet = audioCtx.createGain();
+    live.reverb = audioCtx.createConvolver();
+    live.reverb.buffer = reverbIR;
+
+    live.master = audioCtx.createGain();
+    live.master.gain.value = 1;
+
+    scopeAnalyser = audioCtx.createAnalyser();
+    scopeAnalyser.fftSize = 512;
+    scopeAnalyser.smoothingTimeConstant = 0.35;
+    scopeData = new Float32Array(scopeAnalyser.fftSize);
+
+    live.dormLP1.connect(live.dormLP2);
+    live.dormLP2.connect(live.dormPeak);
+    live.dormPeak.connect(live.dormDry);
+    live.dormPeak.connect(live.dormConv);
+    live.dormConv.connect(live.dormWet);
+
+    const dormMerge = audioCtx.createGain();
+    live.dormDry.connect(dormMerge);
+    live.dormWet.connect(dormMerge);
+
+    dormMerge.connect(live.bass);
+    live.bass.connect(live.dist);
+    live.dist.connect(live.crusher);
+    live.crusher.connect(live.reverbDry);
+    live.crusher.connect(live.reverb);
+    live.reverb.connect(live.reverbWet);
+
+    const revMerge = audioCtx.createGain();
+    live.reverbDry.connect(revMerge);
+    live.reverbWet.connect(revMerge);
+
+    revMerge.connect(live.vol);
+    live.vol.connect(live.limiter);
+    live.limiter.connect(live.master);
+    live.master.connect(scopeAnalyser);
+    scopeAnalyser.connect(audioCtx.destination);
+
+    applyAllParams();
+  }
+
+  function applyAllParams() {
+    if (!audioCtx) return;
+    const v = +sliders.vol.value;
+    const dorm = +sliders.dorm.value / 100;
+    const speed = +sliders.speed.value / 100;
+    const bass = +sliders.bass.value;
+    const dist = +sliders.dist.value / 100;
+    const sr = +sliders.sr.value;
+    const bits = +sliders.bits.value;
+    const rev = +sliders.rev.value / 100;
+
+    if (live.vol) live.vol.gain.value = v / 100;
+
+    const lpHz = 16000 * Math.pow(255 / 16000, dorm);
+    if (live.dormLP1) {
+      live.dormLP1.frequency.value = lpHz;
+      live.dormLP2.frequency.value = lpHz;
+      live.dormPeak.gain.value = dorm * 7.5;
+      const wet = dorm * 0.65;
+      live.dormDry.gain.value = 1 - wet;
+      live.dormWet.gain.value = wet;
+    }
+
+    if (live.bass) live.bass.gain.value = bass;
+
+    if (live.dist) {
+      live.dist.curve = makeDistCurve(dist);
+      if (live.master) live.master.gain.value = 1 / (1 + dist * 1.8);
+    }
+
+    const ctxRate = audioCtx.sampleRate;
+    const targetRate = Math.max(1, sr) * 1000;
+    crusherParams.step = Math.max(1, ctxRate / targetRate);
+    crusherParams.levels = Math.pow(2, bits);
+
+    if (live.reverbDry) {
+      live.reverbDry.gain.value = 1 - rev * 0.65;
+      live.reverbWet.gain.value = rev * 0.95;
+    }
+
+    if (playSource) playSource.playbackRate.value = speed;
+
+    vals.vol.textContent = v + '% · ' + dbFromGain(v / 100) + ' dB';
+    vals.dorm.textContent = Math.round(dorm * 100) + '%';
+    vals.speed.textContent = speed.toFixed(2) + '×';
+    vals.bass.textContent = (bass >= 0 ? '+' : '') + bass.toFixed(1) + ' dB';
+    vals.dist.textContent = Math.round(dist * 100) + '%';
+    vals.sr.textContent = sr.toFixed(1) + ' kHz';
+    vals.bits.textContent = bits + ' bit';
+    vals.rev.textContent = Math.round(rev * 100) + '%';
+  }
+
+  Object.values(sliders).forEach(sl => {
+    sl.addEventListener('input', () => {
+      applyAllParams();
+      document.querySelectorAll('.preset').forEach(p => p.classList.remove('active'));
+    });
+  });
+
+  // ─── Waveform peaks ─────────────────────────────────────
+  function computePeaks(buffer, bars = 200) {
+    const ch0 = buffer.getChannelData(0);
+    const ch1 = buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : ch0;
+    const len = ch0.length;
+    const peaks = new Float32Array(bars);
+    const block = Math.floor(len / bars) || 1;
+    for (let i = 0; i < bars; i++) {
+      let max = 0;
+      const start = i * block;
+      const end = Math.min(start + block, len);
+      for (let j = start; j < end; j++) {
+        const a = Math.max(Math.abs(ch0[j]), Math.abs(ch1[j]));
+        if (a > max) max = a;
+      }
+      peaks[i] = max;
+    }
+    // mild normalize so quiet files still show shape
+    let peakMax = 0;
+    for (let i = 0; i < bars; i++) if (peaks[i] > peakMax) peakMax = peaks[i];
+    if (peakMax > 0.001) {
+      const inv = 1 / peakMax;
+      for (let i = 0; i < bars; i++) peaks[i] = Math.min(1, peaks[i] * inv * 0.92);
+    }
+    return peaks;
+  }
+
+  function drawWaveform() {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = waveWrap.getBoundingClientRect();
+    const w = Math.floor(rect.width * dpr);
+    const h = Math.floor(88 * dpr);
+    if (waveCanvas.width !== w || waveCanvas.height !== h) {
+      waveCanvas.width = w;
+      waveCanvas.height = h;
+    }
+
+    waveCtx.fillStyle = '#FFFFFF';
+    waveCtx.fillRect(0, 0, w, h);
+
+    if (!waveformPeaks || !waveformPeaks.length) return;
+
+    const bars = waveformPeaks.length;
+    const gap = Math.max(1, Math.floor(dpr));
+    const barW = Math.max(1, (w - gap * (bars - 1)) / bars);
+    const mid = h / 2;
+    const maxH = h * 0.42;
+
+    // played region tint
+    const progress = sourceBuffer ? getCurrentTime() / sourceBuffer.duration : 0;
+    const progressX = Math.max(0, Math.min(1, progress)) * w;
+
+    waveCtx.fillStyle = 'rgba(17,17,17,0.06)';
+    waveCtx.fillRect(0, 0, progressX, h);
+
+    for (let i = 0; i < bars; i++) {
+      const x = i * (barW + gap);
+      const amp = waveformPeaks[i];
+      const bh = Math.max(dpr, amp * maxH);
+      const barMid = x + barW / 2;
+
+      // color: played vs unplayed
+      const isPlayed = (x + barW) <= progressX;
+      waveCtx.fillStyle = isPlayed ? '#111111' : '#C7C7CC';
+
+      // vertical line from center
+      waveCtx.fillRect(x, mid - bh, barW, bh * 2);
+    }
+
+    // center line
+    waveCtx.strokeStyle = 'rgba(0,0,0,0.06)';
+    waveCtx.lineWidth = dpr;
+    waveCtx.beginPath();
+    waveCtx.moveTo(0, mid);
+    waveCtx.lineTo(w, mid);
+    waveCtx.stroke();
+  }
+
+  function updatePlayhead() {
+    if (!sourceBuffer) {
+      playhead.style.display = 'none';
+      return;
+    }
+    playhead.style.display = 'block';
+    const t = getCurrentTime();
+    const p = Math.max(0, Math.min(1, t / sourceBuffer.duration));
+    playhead.style.left = (p * 100) + '%';
+    timerEl.textContent = formatTime(t);
+  }
+
+  function getCurrentTime() {
+    if (!sourceBuffer) return 0;
+    if (isPlaying && playSource && audioCtx) {
+      const elapsed = (audioCtx.currentTime - playStartTime) * (+sliders.speed.value / 100);
+      return Math.min(playOffset + elapsed, sourceBuffer.duration);
+    }
+    return playOffset;
+  }
+
+  function seekTo(ratio) {
+    if (!sourceBuffer) return;
+    ratio = Math.max(0, Math.min(1, ratio));
+    const t = ratio * sourceBuffer.duration;
+    const wasPlaying = isPlaying;
+    stopPlayback(false);
+    playOffset = t;
+    updatePlayhead();
+    drawWaveform();
+    if (wasPlaying) startPlayback();
+  }
+
+  // Pointer seek on waveform
+  function pointerRatio(e) {
+    const rect = waveWrap.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    return (clientX - rect.left) / rect.width;
+  }
+
+  waveWrap.addEventListener('pointerdown', e => {
+    if (!sourceBuffer || isRecording) return;
+    isSeeking = true;
+    waveWrap.setPointerCapture(e.pointerId);
+    seekTo(pointerRatio(e));
+  });
+
+  waveWrap.addEventListener('pointermove', e => {
+    if (!isSeeking) return;
+    seekTo(pointerRatio(e));
+  });
+
+  waveWrap.addEventListener('pointerup', () => { isSeeking = false; });
+  waveWrap.addEventListener('pointercancel', () => { isSeeking = false; });
+
+  // ─── Live scope (recording only) ────────────────────────
+  function drawScope() {
+    animId = requestAnimationFrame(drawScope);
+
+    if (isRecording && scopeAnalyser) {
+      scope.style.display = 'block';
+      scopeAnalyser.getFloatTimeDomainData(scopeData);
+      const w = scope.width, h = scope.height;
+      scopeCtx.fillStyle = '#FFFFFF';
+      scopeCtx.fillRect(0, 0, w, h);
+      scopeCtx.strokeStyle = '#EF4444';
+      scopeCtx.lineWidth = 1.5;
+      scopeCtx.beginPath();
+      const step = w / scopeData.length;
+      for (let i = 0; i < scopeData.length; i++) {
+        const x = i * step;
+        const y = (0.5 - scopeData[i] * 0.45) * h;
+        if (i === 0) scopeCtx.moveTo(x, y);
+        else scopeCtx.lineTo(x, y);
+      }
+      scopeCtx.stroke();
+    } else {
+      scope.style.display = 'none';
+    }
+
+    if (sourceBuffer && !isSeeking) {
+      updatePlayhead();
+      if (isPlaying) drawWaveform();
+      if (isPlaying && playSource) {
+        const elapsed = getCurrentTime();
+        if (elapsed >= sourceBuffer.duration - 0.03) stopPlayback(true);
+      }
+    }
+  }
+
+  // ─── Recording ──────────────────────────────────────────
+  function pickMime() {
+    const candidates = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus'];
+    for (const m of candidates) {
+      if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m)) return m;
+    }
+    return '';
+  }
+
+  async function startRecording() {
+    setMsg('');
+    diagWrap.style.display = 'none';
+    lastWavBlob = null;
+    removeShareBtn();
+    try {
+      await ensureCtx();
+      if (!dormIR) dormIR = makeDormIR(audioCtx);
+      if (!reverbIR) reverbIR = makeReverbIR(audioCtx);
+      if (!live.vol) buildLiveGraph();
+
+      mediaStream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+      });
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
+
+      const mime = pickMime();
+      mediaRecorder = new MediaRecorder(mediaStream, mime ? { mimeType: mime } : {});
+      recordedChunks = [];
+
+      mediaRecorder.ondataavailable = e => {
+        if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+        await loadBlobAsBuffer(blob, 'Recording');
+        mediaStream.getTracks().forEach(t => t.stop());
+        mediaStream = null;
+      };
+
+      mediaRecorder.start(100);
+      isRecording = true;
+      btnRec.classList.add('recording');
+      setStatus('Recording', true);
+      btnPlay.disabled = true;
+      btnStop.disabled = false;
+      btnExport.disabled = true;
+      playOffset = 0;
+      timerEl.textContent = '0:00.0';
+      waveformPeaks = null;
+      waveWrap.classList.add('empty');
+      playhead.style.display = 'none';
+      waveTimes.style.display = 'none';
+
+      const recStart = performance.now();
+      const tick = () => {
+        if (!isRecording) return;
+        timerEl.textContent = formatTime((performance.now() - recStart) / 1000);
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    } catch (err) {
+      console.error(err);
+      let hint = 'Microphone permission denied or unavailable.';
+      if (err.name === 'NotAllowedError') hint = 'Permission denied. Allow microphone access and try again.';
+      if (err.name === 'NotFoundError') hint = 'No microphone found.';
+      if (window.self !== window.top) hint += ' This page may be blocked inside an iframe.';
+      setMsg(hint, true);
+      btnRetry.style.display = '';
+    }
+  }
+
+  function stopRecording() {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+    isRecording = false;
+    btnRec.classList.remove('recording');
+    setStatus('Ready');
+    btnStop.disabled = true;
+  }
+
+  btnRec.addEventListener('click', () => {
+    if (isRecording) stopRecording();
+    else startRecording();
+  });
+
+  btnRetry.addEventListener('click', () => {
+    btnRetry.style.display = 'none';
+    startRecording();
+  });
+
+  // ─── Playback ───────────────────────────────────────────
+  function startPlayback() {
+    if (!sourceBuffer || !audioCtx) return;
+    stopPlayback(false);
+    ensureCtx().then(() => {
+      playSource = audioCtx.createBufferSource();
+      playSource.buffer = sourceBuffer;
+      playSource.playbackRate.value = +sliders.speed.value / 100;
+      playSource.connect(live.dormLP1);
+      playSource.onended = () => { if (isPlaying) stopPlayback(); };
+
+      playStartTime = audioCtx.currentTime;
+      playSource.start(0, playOffset);
+      isPlaying = true;
+      $('iconPlay').style.display = 'none';
+      $('iconPause').style.display = '';
+      setStatus('Playing');
+      btnStop.disabled = false;
+    });
+  }
+
+  function stopPlayback(resetOffset = true) {
+    if (playSource) {
+      try { playSource.stop(); } catch (_) {}
+      try { playSource.disconnect(); } catch (_) {}
+      playSource = null;
+    }
+    if (isPlaying && audioCtx) {
+      const elapsed = (audioCtx.currentTime - playStartTime) * (+sliders.speed.value / 100);
+      playOffset = resetOffset ? 0 : playOffset + elapsed;
+      if (sourceBuffer && playOffset >= sourceBuffer.duration) playOffset = 0;
+    }
+    isPlaying = false;
+    $('iconPlay').style.display = '';
+    $('iconPause').style.display = 'none';
+    setStatus(sourceBuffer ? 'Ready' : 'Ready');
+    if (resetOffset) {
+      playOffset = 0;
+      if (sourceBuffer) {
+        timerEl.textContent = formatTime(0);
+        updatePlayhead();
+        drawWaveform();
+      }
+    }
+  }
+
+  btnPlay.addEventListener('click', () => {
+    if (isPlaying) {
+      const elapsed = (audioCtx.currentTime - playStartTime) * (+sliders.speed.value / 100);
+      playOffset += elapsed;
+      stopPlayback(false);
+      setStatus('Paused');
+      updatePlayhead();
+      drawWaveform();
+    } else {
+      startPlayback();
+    }
+  });
+
+  btnStop.addEventListener('click', () => {
+    if (isRecording) stopRecording();
+    else stopPlayback(true);
+  });
+
+  // ─── Load buffer + build waveform ───────────────────────
+  function onBufferReady(buf, label) {
+    sourceBuffer = buf;
+    playOffset = 0;
+    waveformPeaks = computePeaks(buf, Math.min(240, Math.max(80, Math.floor(waveWrap.clientWidth * 0.7))));
+    waveWrap.classList.remove('empty');
+    waveTimes.style.display = 'flex';
+    tStart.textContent = '0:00';
+    tEnd.textContent = formatTimeShort(buf.duration);
+    timerEl.textContent = formatTime(0);
+    updatePlayhead();
+    drawWaveform();
+    btnPlay.disabled = false;
+    btnExport.disabled = false;
+    setMsg(label + ' · ' + buf.duration.toFixed(1) + 's · ' + buf.numberOfChannels + ' ch');
+    diagWrap.style.display = 'none';
+    setStatus('Ready');
+    lastWavBlob = null;
+    removeShareBtn();
+  }
+
+  function detectHeader(bytes) {
+    if (!bytes || bytes.length < 4) return 'empty / too short';
+    const s = String.fromCharCode(...bytes.slice(0, Math.min(16, bytes.length)));
+    // ISO BMFF / QuickTime / MP4
+    if (bytes.length >= 8 && bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70) {
+      const brand = String.fromCharCode(...bytes.slice(8, Math.min(12, bytes.length)));
+      return 'ftyp' + brand + ' (MP4/QuickTime)';
+    }
+    if (s.startsWith('RIFF') && bytes.length > 8 && bytes[8] === 0x57) return 'RIFF/WAVE';
+    if (s.startsWith('RIFF') && bytes.length > 8 && bytes[8] === 0x41) return 'RIFF/AVI';
+    if (s.startsWith('ID3')) return 'ID3 (MP3 tagged)';
+    if (bytes[0] === 0xFF && (bytes[1] & 0xE0) === 0xE0) return 'MPEG frame sync (MP3/AAC)';
+    if (s.startsWith('OggS')) return 'OggS (Ogg/Opus/Vorbis)';
+    if (s.startsWith('fLaC')) return 'fLaC';
+    if (s.startsWith('FORM') && s.includes('AIFF')) return 'AIFF';
+    if (bytes[0] === 0x1A && bytes[1] === 0x45 && bytes[2] === 0xDF && bytes[3] === 0xA3) return 'EBML (Matroska/WebM/MKV)';
+    if (s.startsWith('caff')) return 'CAF (Core Audio)';
+    if (s.startsWith('\x00\x00\x00\x14ftyp') || s.includes('ftyp')) return 'ftyp (QT/MP4 family)';
+    if (s.startsWith('\x1a\x45\xdf\xa3')) return 'EBML';
+    // hex dump of first 8 bytes for unknown
+    const hex = Array.from(bytes.slice(0, 8)).map(b => b.toString(16).padStart(2, '0')).join(' ');
+    return 'unknown [' + hex + ']';
+  }
+
+  function extOf(name) {
+    const m = (name || '').match(/\.([a-z0-9]+)$/i);
+    return m ? m[1].toLowerCase() : '(none)';
+  }
+
+  function showDiag(info) {
+    diagWrap.style.display = '';
+    const rows = [
+      ['File', info.name || 'unknown'],
+      ['Extension', '.' + (info.ext || '?')],
+      ['Size', (info.size / 1024).toFixed(1) + ' KB' + (info.size === 0 ? '  ← empty' : '')],
+      ['Reported MIME', info.mime === '' ? '"" (empty)' : (info.mime || 'n/a')],
+      ['Binary header', info.header || 'n/a'],
+      ['Stage 1 (decodeAudioData)', info.stage1 || '—'],
+      ['Stage 2 (video extract)', info.stage2 || '—'],
+    ];
+    const body = rows.map(([k, v]) => `<div style="display:flex;gap:8px;margin:2px 0"><span style="min-width:150px;color:#71717A">${k}</span><code style="word-break:break-all">${v}</code></div>`).join('');
+    diagWrap.innerHTML = `<div class="diag">
+      <strong style="color:#EF4444">Could not load audio</strong>
+      <div style="margin:10px 0 8px">${body}</div>
+      <div style="margin-top:8px;padding-top:8px;border-top:1px solid #E5E5E7;color:#111">
+        <strong>What to try</strong><br>${info.diagnosis}
+      </div>
+    </div>`;
+  }
+
+  async function loadBlobAsBuffer(blob, label = 'File') {
+    setMsg('Decoding…');
+    diagWrap.style.display = 'none';
+    await ensureCtx();
+    if (!dormIR) dormIR = makeDormIR(audioCtx);
+    if (!reverbIR) reverbIR = makeReverbIR(audioCtx);
+    if (!live.vol) buildLiveGraph();
+
+    const name = blob.name || label || 'unknown';
+    const ext = extOf(name);
+    const mime = blob.type || '';
+    const size = blob.size || 0;
+
+    let ab;
+    try {
+      ab = await blob.arrayBuffer();
+    } catch (e) {
+      showDiag({
+        name, ext, size, mime, header: 'n/a',
+        stage1: 'could not read file bytes',
+        stage2: 'skipped',
+        diagnosis: 'Browser refused to read the file. On iOS, fully download iCloud files first (remove the cloud icon).'
+      });
+      setMsg('Could not read file', true);
+      return;
+    }
+
+    const headerBytes = new Uint8Array(ab.slice(0, 64));
+    const header = detectHeader(headerBytes);
+
+    // Stage 1
+    let stage1 = 'not attempted';
+    try {
+      const buf = await audioCtx.decodeAudioData(ab.slice(0));
+      onBufferReady(buf, label);
+      return;
+    } catch (e1) {
+      stage1 = (e1 && e1.message) ? e1.message : String(e1);
+      console.warn('decodeAudioData failed', e1);
+    }
+
+    // Stage 2 — video / container extract
+    let stage2 = 'not attempted';
+    try {
+      const url = URL.createObjectURL(blob);
+      const video = document.createElement('video');
+      video.muted = false;
+      video.playsInline = true;
+      video.preload = 'auto';
+      video.setAttribute('playsinline', '');
+      video.src = url;
+
+      await new Promise((resolve, reject) => {
+        const to = setTimeout(() => reject(new Error('load timeout (25s)')), 25000);
+        video.onloadeddata = () => { clearTimeout(to); resolve(); };
+        video.onerror = () => {
+          clearTimeout(to);
+          const mediaErr = video.error;
+          const code = mediaErr ? mediaErr.code : '?';
+          const map = { 1: 'aborted', 2: 'network', 3: 'decode', 4: 'src not supported' };
+          reject(new Error('video element error: ' + (map[code] || code)));
+        };
+      });
+
+      let stream = null;
+      if (typeof video.captureStream === 'function') stream = video.captureStream();
+      else if (typeof video.mozCaptureStream === 'function') stream = video.mozCaptureStream();
+
+      if (stream) {
+        const tracks = stream.getAudioTracks();
+        if (!tracks.length) {
+          URL.revokeObjectURL(url);
+          throw new Error('container has 0 audio tracks');
+        }
+        const recMime = pickMime();
+        const rec = new MediaRecorder(stream, recMime ? { mimeType: recMime } : {});
+        const chunks = [];
+        rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+        const done = new Promise(r => { rec.onstop = r; });
+        rec.start(100);
+        try {
+          await video.play();
+        } catch (playErr) {
+          // autoplay policies — try muted then unmute path already set false
+          throw new Error('playback blocked: ' + (playErr.message || playErr));
+        }
+        await new Promise((r, rej) => {
+          const to = setTimeout(() => rej(new Error('playback timeout')), 120000);
+          video.onended = () => { clearTimeout(to); r(); };
+          video.onerror = () => { clearTimeout(to); rej(new Error('playback error')); };
+        });
+        rec.stop();
+        await done;
+        URL.revokeObjectURL(url);
+
+        if (!chunks.length) throw new Error('MediaRecorder produced 0 bytes');
+        const recBlob = new Blob(chunks, { type: rec.mimeType || 'audio/webm' });
+        const recAb = await recBlob.arrayBuffer();
+        const buf = await audioCtx.decodeAudioData(recAb);
+        onBufferReady(buf, label + ' (extracted)');
+        return;
+      }
+
+      URL.revokeObjectURL(url);
+      throw new Error('captureStream not available on this browser');
+    } catch (e2) {
+      stage2 = (e2 && e2.message) ? e2.message : String(e2);
+      console.warn('video pipeline failed', e2);
+    }
+
+    // Build actionable diagnosis
+    let diagnosis = 'Browser could not decode this container. Re-encode to WAV, M4A, or MP3 and try again.';
+    if (size === 0) {
+      diagnosis = 'File is 0 bytes — often an iCloud placeholder. Open Files, download the full copy, then upload again.';
+    } else if (/RPReplay_/i.test(name)) {
+      diagnosis = 'iOS screen recording (RPReplay) often has no audio track, or only system audio that Safari strips. Re-record with microphone enabled, or export from Photos after enabling audio.';
+    } else if (/screen.?record|ScreenRecording|REC_/i.test(name)) {
+      diagnosis = 'Screen recording may lack an audio track. Confirm the recording included mic or system audio, then re-export.';
+    } else if (header.includes('ftyp') || /mov|mp4|m4v|qt/i.test(ext)) {
+      diagnosis = 'QuickTime/MP4/HEVC container failed. On iPhone: open in Photos → Edit → trim ~0.1s off either end → Done (re-muxes audio). Or share as “Most Compatible”. Desktop: convert with HandBrake or ffmpeg to AAC-in-MP4 or WAV.';
+    } else if (header.includes('EBML') || /mkv|webm/i.test(ext)) {
+      diagnosis = 'Matroska/WebM failed native decode and stream capture. Convert to MP4 (H.264 + AAC) or WAV.';
+    } else if (/avi|wmv|flv|mpeg|mpg|vob|mxf|rm/i.test(ext)) {
+      diagnosis = 'Legacy/container format is rarely supported in-browser. Convert to WAV, MP3, or MP4 (AAC) first.';
+    } else if (header.startsWith('unknown') || mime === '') {
+      diagnosis = 'Unrecognized or empty type. Confirm the file is a real audio/video (not a shortcut or cloud stub). Convert to WAV if unsure.';
+    } else if (stage2.includes('0 audio tracks')) {
+      diagnosis = 'The file loaded as video but has no audio track. Re-export with audio enabled.';
+    } else if (stage2.includes('not supported') || stage1.includes('Unable to decode')) {
+      diagnosis = 'Codec not supported by this browser (common with pure HEVC, AC-3, DTS, or proprietary audio). Re-encode audio as AAC or PCM WAV.';
+    }
+
+    showDiag({ name, ext, size, mime, header, stage1, stage2, diagnosis });
+    setMsg('Could not load — see details below', true);
+  }
+
+  btnUpload.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', async () => {
+    const f = fileInput.files[0];
+    if (!f) return;
+    stopPlayback(true);
+    await loadBlobAsBuffer(f, f.name);
+    fileInput.value = '';
+  });
+
+  // ─── Test tone ──────────────────────────────────────────
+  btnTest.addEventListener('click', async () => {
+    await ensureCtx();
+    if (!dormIR) dormIR = makeDormIR(audioCtx);
+    if (!reverbIR) reverbIR = makeReverbIR(audioCtx);
+    if (!live.vol) buildLiveGraph();
+
+    const dur = 3;
+    const sr = audioCtx.sampleRate;
+    const buf = audioCtx.createBuffer(2, sr * dur, sr);
+    for (let c = 0; c < 2; c++) {
+      const d = buf.getChannelData(c);
+      for (let i = 0; i < d.length; i++) {
+        const t = i / sr;
+        const f = 220 * Math.pow(2, Math.floor(t * 2) % 5 / 12);
+        d[i] = 0.3 * Math.sin(2 * Math.PI * f * t) * Math.exp(-t * 0.4)
+             + 0.08 * (Math.random() * 2 - 1) * Math.exp(-Math.pow((t % 1) - 0.1, 2) * 40);
+      }
+    }
+    onBufferReady(buf, 'Test tone');
+    startPlayback();
+  });
+
+  // ─── Presets ────────────────────────────────────────────
+  const PRESETS = {
+    clean:     { vol: 100, dorm: 0,  speed: 100, bass: 0,  dist: 0,  sr: 48, bits: 16, rev: 0  },
+    dorm:      { vol: 125, dorm: 78, speed: 100, bass: 0,  dist: 0,  sr: 48, bits: 16, rev: 0  },
+    lofi:      { vol: 100, dorm: 0,  speed: 100, bass: 4,  dist: 18, sr: 11, bits: 10, rev: 0  },
+    demon:     { vol: 100, dorm: 0,  speed: 72,  bass: 20, dist: 45, sr: 48, bits: 16, rev: 35 },
+    '8bit':    { vol: 100, dorm: 0,  speed: 100, bass: 0,  dist: 0,  sr: 8,  bits: 4,  rev: 0  },
+    cathedral: { vol: 100, dorm: 0,  speed: 92,  bass: 0,  dist: 0,  sr: 48, bits: 16, rev: 82 },
+    crush:     { vol: 100, dorm: 0,  speed: 100, bass: 0,  dist: 30, sr: 1,  bits: 3,  rev: 0  },
+  };
+
+  document.getElementById('presets').addEventListener('click', e => {
+    const btn = e.target.closest('.preset');
+    if (!btn) return;
+    const p = PRESETS[btn.dataset.preset];
+    if (!p) return;
+    document.querySelectorAll('.preset').forEach(x => x.classList.remove('active'));
+    btn.classList.add('active');
+    sliders.vol.value = p.vol;
+    sliders.dorm.value = p.dorm;
+    sliders.speed.value = p.speed;
+    sliders.bass.value = p.bass;
+    sliders.dist.value = p.dist;
+    sliders.sr.value = p.sr;
+    sliders.bits.value = p.bits;
+    sliders.rev.value = p.rev;
+    applyAllParams();
+  });
+
+  // ─── Share button helpers ───────────────────────────────
+  let lastExportName = 'memo';
+
+  function sanitizeFilename(name) {
+    let n = (name || '').trim();
+    n = n.replace(/\.wav$/i, '');
+    n = n.replace(/[\\/:*?"<>|\x00-\x1f]/g, '-').replace(/\s+/g, ' ').trim();
+    if (!n) n = 'memo';
+    return n.slice(0, 80);
+  }
+
+  function askFilename(defaultName, confirmLabel) {
+    return new Promise((resolve) => {
+      const modal = document.getElementById('nameModal');
+      const input = document.getElementById('nameInput');
+      const confirmBtn = document.getElementById('nameConfirm');
+      const cancelBtn = document.getElementById('nameCancel');
+      const title = document.getElementById('nameModalTitle');
+      title.textContent = confirmLabel === 'Share' ? 'Name before sharing' : 'Name your file';
+      confirmBtn.textContent = confirmLabel || 'Export';
+      input.value = sanitizeFilename(defaultName || lastExportName || 'memo');
+      modal.classList.add('open');
+      setTimeout(() => { input.focus(); input.select(); }, 50);
+
+      const cleanup = () => {
+        modal.classList.remove('open');
+        confirmBtn.onclick = null;
+        cancelBtn.onclick = null;
+        modal.onclick = null;
+        input.onkeydown = null;
+      };
+
+      confirmBtn.onclick = () => {
+        const name = sanitizeFilename(input.value);
+        lastExportName = name;
+        cleanup();
+        resolve(name);
+      };
+      cancelBtn.onclick = () => { cleanup(); resolve(null); };
+      modal.onclick = (e) => { if (e.target === modal) { cleanup(); resolve(null); } };
+      input.onkeydown = (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); confirmBtn.click(); }
+        if (e.key === 'Escape') { e.preventDefault(); cancelBtn.click(); }
+      };
+    });
+  }
+
+  function removeShareBtn() {
+    const existing = document.getElementById('btnShare');
+    if (existing) existing.remove();
+    actionRow.classList.remove('three');
+  }
+
+  function showShareBtn() {
+    removeShareBtn();
+    if (!lastWavBlob) return;
+    const probe = new File([lastWavBlob], (lastExportName || 'memo') + '.wav', { type: 'audio/wav' });
+    const canShareFiles = navigator.canShare && navigator.canShare({ files: [probe] });
+    const canShare = !!navigator.share;
+    if (!canShare && !canShareFiles) return;
+
+    actionRow.classList.add('three');
+    const btn = document.createElement('button');
+    btn.id = 'btnShare';
+    btn.className = 'btn-action';
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8M16 6l-4-4-4 4M12 2v13"/></svg> Share`;
+    btn.addEventListener('click', async () => {
+      if (!lastWavBlob) return;
+      const name = await askFilename(lastExportName, 'Share');
+      if (!name) return;
+      const filename = name + '.wav';
+      const file = new File([lastWavBlob], filename, { type: 'audio/wav' });
+      try {
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: filename,
+            text: 'Processed voice memo'
+          });
+        } else if (navigator.share) {
+          const url = URL.createObjectURL(lastWavBlob);
+          await navigator.share({
+            title: filename,
+            text: 'Processed voice memo · ' + filename,
+            url
+          });
+          setTimeout(() => URL.revokeObjectURL(url), 10000);
+        }
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          setMsg('Share cancelled or unavailable', true);
+        }
+      }
+    });
+    actionRow.insertBefore(btn, btnExport);
+  }
+
+  // ─── Offline WAV ────────────────────────────────────────
+  function floatTo16BitPCM(input) {
+    const out = new Int16Array(input.length);
+    for (let i = 0; i < input.length; i++) {
+      const s = Math.max(-1, Math.min(1, input[i]));
+      out[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+    }
+    return out;
+  }
+
+  function encodeWAV(samples, sampleRate, numChannels) {
+    const dataLength = samples.length * 2;
+    const buffer = new ArrayBuffer(44 + dataLength);
+    const view = new DataView(buffer);
+    const writeStr = (o, s) => { for (let i = 0; i < s.length; i++) view.setUint8(o + i, s.charCodeAt(i)); };
+    writeStr(0, 'RIFF');
+    view.setUint32(4, 36 + dataLength, true);
+    writeStr(8, 'WAVE');
+    writeStr(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * numChannels * 2, true);
+    view.setUint16(32, numChannels * 2, true);
+    view.setUint16(34, 16, true);
+    writeStr(36, 'data');
+    view.setUint32(40, dataLength, true);
+    const pcm = floatTo16BitPCM(samples);
+    for (let i = 0; i < pcm.length; i++) view.setInt16(44 + i * 2, pcm[i], true);
+    return new Blob([buffer], { type: 'audio/wav' });
+  }
+
+  async function renderOffline(exportName) {
+    if (!sourceBuffer) return;
+    setMsg('Rendering…');
+    btnExport.disabled = true;
+    removeShareBtn();
+
+    const speed = +sliders.speed.value / 100;
+    const outRate = 48000;
+    const srcCh = sourceBuffer.numberOfChannels;
+    let offlineBuf = sourceBuffer;
+
+    if (sourceBuffer.sampleRate !== outRate) {
+      const newLen = Math.ceil(sourceBuffer.length * outRate / sourceBuffer.sampleRate);
+      offlineBuf = audioCtx.createBuffer(srcCh, newLen, outRate);
+      for (let c = 0; c < srcCh; c++) {
+        const inp = sourceBuffer.getChannelData(c);
+        const out = offlineBuf.getChannelData(c);
+        for (let i = 0; i < newLen; i++) {
+          const pos = i * sourceBuffer.sampleRate / outRate;
+          const i0 = Math.floor(pos);
+          const frac = pos - i0;
+          out[i] = inp[Math.min(i0, inp.length - 1)] * (1 - frac) + inp[Math.min(i0 + 1, inp.length - 1)] * frac;
+        }
+      }
+    }
+
+    const outLen = Math.ceil(offlineBuf.length / speed);
+    const offline = new OfflineAudioContext(2, outLen, outRate);
+
+    const src = offline.createBufferSource();
+    src.buffer = offlineBuf;
+    src.playbackRate.value = speed;
+
+    const vol = offline.createGain();
+    vol.gain.value = +sliders.vol.value / 100;
+
+    const limiter = offline.createDynamicsCompressor();
+    limiter.threshold.value = -1.5;
+    limiter.knee.value = 6;
+    limiter.ratio.value = 12;
+    limiter.attack.value = 0.003;
+    limiter.release.value = 0.1;
+
+    const dorm = +sliders.dorm.value / 100;
+    const lpHz = 16000 * Math.pow(255 / 16000, dorm);
+    const lp1 = offline.createBiquadFilter();
+    lp1.type = 'lowpass'; lp1.frequency.value = lpHz; lp1.Q.value = 0.707;
+    const lp2 = offline.createBiquadFilter();
+    lp2.type = 'lowpass'; lp2.frequency.value = lpHz; lp2.Q.value = 0.707;
+    const peak = offline.createBiquadFilter();
+    peak.type = 'peaking'; peak.frequency.value = 140; peak.Q.value = 2.2; peak.gain.value = dorm * 7.5;
+
+    const dormDry = offline.createGain();
+    const dormWet = offline.createGain();
+    const wetAmt = dorm * 0.65;
+    dormDry.gain.value = 1 - wetAmt;
+    dormWet.gain.value = wetAmt;
+    const dormConv = offline.createConvolver();
+    dormConv.buffer = makeDormIR(offline);
+
+    const bass = offline.createBiquadFilter();
+    bass.type = 'lowshelf'; bass.frequency.value = 135; bass.gain.value = +sliders.bass.value;
+
+    const dist = offline.createWaveShaper();
+    dist.oversample = '4x';
+    const distAmt = +sliders.dist.value / 100;
+    dist.curve = makeDistCurve(distAmt);
+    const makeup = offline.createGain();
+    makeup.gain.value = 1 / (1 + distAmt * 1.8);
+
+    const rev = +sliders.rev.value / 100;
+    const revDry = offline.createGain();
+    const revWet = offline.createGain();
+    revDry.gain.value = 1 - rev * 0.65;
+    revWet.gain.value = rev * 0.95;
+    const revConv = offline.createConvolver();
+    revConv.buffer = makeReverbIR(offline);
+
+    src.connect(lp1);
+    lp1.connect(lp2);
+    lp2.connect(peak);
+    peak.connect(dormDry);
+    peak.connect(dormConv);
+    dormConv.connect(dormWet);
+    const dMerge = offline.createGain();
+    dormDry.connect(dMerge);
+    dormWet.connect(dMerge);
+    dMerge.connect(bass);
+    bass.connect(dist);
+    dist.connect(makeup);
+    makeup.connect(revDry);
+    makeup.connect(revConv);
+    revConv.connect(revWet);
+    const rMerge = offline.createGain();
+    revDry.connect(rMerge);
+    revWet.connect(rMerge);
+    rMerge.connect(vol);
+    vol.connect(limiter);
+    limiter.connect(offline.destination);
+
+    src.start(0);
+    let rendered = await offline.startRendering();
+
+    // Sample-rate hold + bit crush
+    const targetSR = Math.max(1, +sliders.sr.value) * 1000;
+    const bits = +sliders.bits.value;
+    const levels = Math.pow(2, bits);
+    const step = Math.max(1, outRate / targetSR);
+    const inv = levels > 1 ? 1 / (levels - 1) : 1;
+
+    const ch0 = rendered.getChannelData(0);
+    const ch1 = rendered.numberOfChannels > 1 ? rendered.getChannelData(1) : ch0;
+    const outL = new Float32Array(ch0.length);
+    const outR = new Float32Array(ch0.length);
+    let holdL = 0, holdR = 0, phase = 0;
+    for (let i = 0; i < ch0.length; i++) {
+      if (phase <= 0) {
+        let sl = ch0[i], sr = ch1[i];
+        if (levels < 65536) {
+          sl = Math.round((sl + 1) * 0.5 * (levels - 1)) * inv * 2 - 1;
+          sr = Math.round((sr + 1) * 0.5 * (levels - 1)) * inv * 2 - 1;
+        }
+        holdL = sl; holdR = sr;
+        phase = step;
+      }
+      outL[i] = holdL;
+      outR[i] = holdR;
+      phase -= 1;
+    }
+
+    const interleaved = new Float32Array(outL.length * 2);
+    for (let i = 0; i < outL.length; i++) {
+      interleaved[i * 2] = outL[i];
+      interleaved[i * 2 + 1] = outR[i];
+    }
+
+    const wav = encodeWAV(interleaved, outRate, 2);
+    lastWavBlob = wav;
+
+    const filename = (exportName || lastExportName || 'memo') + '.wav';
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(wav);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+
+    setMsg('Exported ' + filename + ' · ' + (wav.size / 1024).toFixed(0) + ' KB');
+    btnExport.disabled = false;
+    showShareBtn();
+  }
+
+  btnExport.addEventListener('click', async () => {
+    if (!sourceBuffer) return;
+    const name = await askFilename(lastExportName, 'Export');
+    if (!name) return;
+    renderOffline(name).catch(err => {
+      console.error(err);
+      setMsg('Export failed: ' + err.message, true);
+      btnExport.disabled = false;
+    });
+  });
+
+  // ─── Init ───────────────────────────────────────────────
+  function resizeWave() {
+    drawWaveform();
+  }
+  window.addEventListener('resize', resizeWave);
+  drawScope();
+  applyAllParams();
+})();
+</script>
+</body>
+</html>
